@@ -1,0 +1,142 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mx-auto px-4">
+    <!-- Header with Back and Logout options -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+            <h1 class="brand-font text-3xl font-extrabold text-slate-800">Transaction History</h1>
+            <div class="flex gap-4 mt-2">
+                <a href="/dashboard" class="text-blue-600 font-semibold text-sm hover:underline flex items-center gap-1">
+                    ← Back to Dashboard
+                </a>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <a href="/export" class="px-4 py-2 bg-slate-800 hover:bg-black text-white text-sm font-bold rounded-xl no-underline transition-all">
+                Export CSV
+            </a>
+            <a href="/logout" class="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 text-sm font-bold rounded-xl no-underline border border-rose-100 transition-all">
+                Log Out
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Toolbar -->
+    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-6">
+        <form method="get" action="/history" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Type</label>
+                <select name="type" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700">
+                    <option value="">All Types</option>
+                    <option value="income" {% if request.args.get('type') == 'income' %}selected{% endif %}>Income</option>
+                    <option value="expense" {% if request.args.get('type') == 'expense' %}selected{% endif %}>Expense</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Category</label>
+                <select name="category" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700">
+                    <option value="">All Categories</option>
+                    {% for cat in ["Food", "Rent", "Entertainment", "Shopping", "Education", "Transport", "Health", "Other"] %}
+                    <option value="{{cat}}" {% if request.args.get('category') == cat %}selected{% endif %}>{{cat}}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">From</label>
+                <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">To</label>
+                <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700">
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all text-sm">
+                    Apply
+                </button>
+                <a href="/history" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg transition-all text-sm no-underline flex items-center justify-center">
+                    Reset
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Live Statistics Bar (WITH FIXED DECIMALS) -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 text-center">
+        <div class="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
+            <p class="text-xs font-bold text-blue-500 uppercase">Transactions</p>
+            <p class="text-xl font-extrabold text-blue-900">{{total_count}}</p>
+        </div>
+        <div class="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">
+            <p class="text-xs font-bold text-emerald-500 uppercase">Income</p>
+            <p class="text-xl font-extrabold text-emerald-900">₹{{ "{:,.2f}".format(summary_income) }}</p>
+        </div>
+        <div class="bg-rose-50 border border-rose-100 p-4 rounded-2xl">
+            <p class="text-xs font-bold text-rose-500 uppercase">Expenses</p>
+            <p class="text-xl font-extrabold text-rose-900">₹{{ "{:,.2f}".format(summary_expense) }}</p>
+        </div>
+        <div class="{% if net >= 0 %}bg-slate-900 text-white{% else %}bg-rose-600 text-white{% endif %} p-4 rounded-2xl shadow-lg">
+            <p class="text-xs font-bold opacity-70 uppercase">Net Result</p>
+            <p class="text-xl font-extrabold">₹{{ "{:,.2f}".format(net) }}</p>
+        </div>
+    </div>
+
+    <!-- History Table -->
+    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+                    <tr>
+                        <th class="px-6 py-4">#</th>
+                        <th class="px-6 py-4">Date</th>
+                        <th class="px-6 py-4">Category</th>
+                        <th class="px-6 py-4">Note</th>
+                        <th class="px-6 py-4">Type</th>
+                        <th class="px-6 py-4 text-right">Amount</th>
+                        <th class="px-6 py-4 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    {% for transaction in results %}
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="px-6 py-4 text-sm text-slate-400">{{loop.index}}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600 font-medium">{{transaction["date"]}}</td>
+                        <td class="px-6 py-4 text-sm">
+                            <span class="px-3 py-1 bg-slate-100 text-slate-700 rounded-full font-semibold text-xs uppercase tracking-wider">
+                                {{transaction["category"]}}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-500 italic">
+                            {{transaction["note"] if transaction["note"] else "—"}}
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="text-xs font-bold uppercase {{ 'text-emerald-600' if transaction['type'] == 'income' else 'text-rose-500' }}">
+                                {{transaction["type"]}}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-sm font-bold text-right {{ 'text-emerald-600' if transaction['type'] == 'income' else 'text-slate-800' }}">
+                            {{ '+' if transaction['type'] == 'income' else '-' }} ₹{{ "{:,.2f}".format(transaction["amount"]) }}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <form method="post" action="/delete/{{transaction['id']}}" onsubmit="return confirm('Delete this record?');">
+                                <button type="submit" class="p-2 text-slate-300 hover:text-rose-600 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if not results %}
+        <div class="text-center py-20">
+            <h3 class="font-bold text-slate-800">No transactions found</h3>
+            <p class="text-slate-500 text-sm">Try adjusting your filters or adding a new transaction.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

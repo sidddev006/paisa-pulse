@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[70vh] px-4">
+    <div class="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-slate-200/60 p-8 border border-slate-100">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-50 rounded-2xl mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="Refers to Paisa Pulse - Brave 2026-05-02 16-53-16.mp4" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+            </div>
+            <h2 class="brand-font text-3xl font-extrabold text-slate-800">Welcome Back</h2>
+            <p class="text-slate-500 mt-2">Log in to manage your Paisa Pulse dashboard</p>
+        </div>
+
+        <form action="/login" method="post" class="space-y-6">
+            <!-- Username -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2 ml-1">Username</label>
+                <input autocomplete="off" autofocus 
+                       class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-slate-800 placeholder:text-slate-400" 
+                       placeholder="Enter your username" 
+                       name="username" 
+                       type="text"
+                       required>
+            </div>
+
+            <!-- Password -->
+            <div>
+                <div class="flex justify-between items-center mb-2 ml-1">
+                    <label class="block text-sm font-semibold text-slate-700">Password</label>
+                </div>
+                <input class="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-slate-800 placeholder:text-slate-400" 
+                       name="password" 
+                       placeholder="••••••••" 
+                       type="password" 
+                       required 
+                       autocomplete="off">
+            </div>
+
+            <!-- Submit Button -->
+            <div class="pt-2">
+                <button class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-[0.98]" 
+                        type="submit">
+                    Sign In
+                </button>
+            </div>
+        </form>
+
+        <!-- Footer Link -->
+        <div class="mt-8 text-center border-t border-slate-100 pt-6">
+            <p class="text-sm text-slate-500">
+                New to Paisa Pulse? 
+                <a href="/register" class="text-blue-600 font-semibold hover:underline">Create an account</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

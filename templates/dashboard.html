@@ -1,0 +1,189 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mx-auto px-4">
+    <!-- Header Section -->
+    <div class="mb-8">
+        <h1 class="brand-font text-3xl font-extrabold text-slate-800">Financial Overview</h1>
+        <p class="text-slate-500">Track your progress and visual spending habits at a glance.</p>
+    </div>
+
+    <!-- Quick Action Buttons -->
+    <div class="flex flex-wrap gap-4 mb-8">
+        <a href="/add" class="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200 no-underline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Add New Transaction
+        </a>
+        
+        <a href="/history" class="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-2xl transition-all shadow-sm no-underline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            View All History
+        </a>
+    </div>
+
+    <!-- Summary Cards (Fixed Decimal Formatting) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <!-- Balance Card -->
+        <div class="bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl p-6 text-white shadow-lg shadow-blue-200">
+            <p class="text-blue-100 font-medium mb-1">Total Balance</p>
+            <h2 class="text-4xl font-bold">₹{{ "{:,.2f}".format(balance) }}</h2>
+            <div class="mt-4 flex items-center text-sm text-blue-100 bg-white/10 w-fit px-3 py-1 rounded-full">
+                <span>Current Wallet</span>
+            </div>
+        </div>
+
+        <!-- Income Card -->
+        <div class="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm">
+            <p class="text-slate-500 font-medium mb-1">Total Income</p>
+            <h2 class="text-4xl font-bold text-emerald-600">₹{{ "{:,.2f}".format(total_income) }}</h2>
+            <p class="text-emerald-500 text-sm mt-2 font-medium">↑ Monthly Earnings</p>
+        </div>
+
+        <!-- Expense Card -->
+        <div class="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm">
+            <p class="text-slate-500 font-medium mb-1">Total Expenses</p>
+            <h2 class="text-4xl font-bold text-rose-600">₹{{ "{:,.2f}".format(total_expense) }}</h2>
+            <p class="text-rose-500 text-sm mt-2 font-medium">↓ Total Outflow</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+        <!-- Visual Insights (Restored Original Logic) -->
+        <div class="lg:col-span-2 space-y-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Doughnut Chart Card -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                    <h3 class="font-bold text-slate-800 mb-4 text-center">Spending by Category</h3>
+                    <div style="width: 100%; margin: auto;">
+                        <canvas id="doughnutChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Bar Chart Card -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                    <h3 class="font-bold text-slate-800 mb-4 text-center">Income vs Expense</h3>
+                    <div style="width: 100%; margin: auto;">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Transactions Table -->
+            <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-50 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800">Recent Transactions</h3>
+                    <a href="/history" class="text-sm font-semibold text-blue-600 hover:underline">View All</a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+                            <tr>
+                                <th class="px-6 py-3">Date</th>
+                                <th class="px-6 py-3">Category</th>
+                                <th class="px-6 py-3">Type</th>
+                                <th class="px-6 py-3 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50">
+                            {% for transaction in recent_transactions %}
+                            <tr class="hover:bg-slate-50/50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-600">{{transaction["date"]}}</td>
+                                <td class="px-6 py-4 font-medium text-slate-800">{{transaction["category"]}}</td>
+                                <td class="px-6 py-4 text-xs font-bold uppercase {{ 'text-emerald-600' if transaction['type'] == 'income' else 'text-rose-500' }}">
+                                    {{transaction["type"]}}
+                                </td>
+                                <td class="px-6 py-4 text-sm font-bold text-right {{ 'text-emerald-600' if transaction['type'] == 'income' else 'text-slate-800' }}">
+                                    ₹{{ "{:,.2f}".format(transaction["amount"]) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monthly Insights Column -->
+        <div class="lg:col-span-1">
+            <div class="bg-slate-900 rounded-3xl p-6 text-white h-full shadow-xl">
+                <h3 class="brand-font text-xl font-bold mb-6 flex items-center gap-2">
+                    <span>Insights ✨</span>
+                </h3>
+                
+                <div class="space-y-6">
+                    {% if saved > 0 %}
+                    <div class="flex gap-4 border-b border-white/10 pb-4">
+                        <div>
+                            <p class="text-slate-400 text-xs">Total Savings</p>
+                            <p class="text-sm font-medium">You saved <span class="text-emerald-400 font-bold">₹{{ "{:,.2f}".format(saved) }}</span> this month!</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if overspending > 0 %}
+                    <div class="flex gap-4 border-b border-white/10 pb-4">
+                        <div>
+                            <p class="text-slate-400 text-xs">Spending Alert</p>
+                            <p class="text-sm font-medium">Overspending by <span class="text-rose-400 font-bold">₹{{ "{:,.2f}".format(overspending) }}</span> vs last month.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if biggest_category %}
+                    <div class="flex gap-4">
+                        <div>
+                            <p class="text-slate-400 text-xs">Major Category</p>
+                            <p class="text-sm font-medium">Your biggest expense is <span class="text-blue-400 font-bold">{{biggest_category}}</span> at <span class="font-bold">{{percentage}}%</span> of total expenses.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // RESTORED ORIGINAL DOUGHNUT LOGIC[cite: 1]
+    const labels = {{expense_labels | tojson }};
+    const data = {{expense_amounts |tojson }};
+    new Chart(document.getElementById("doughnutChart"),{
+        type : "doughnut",
+        data : {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: [              
+                    'rgb(255, 99, 132)', 'rgb(255, 159, 64)', 'rgb(255, 205, 86)',
+                    'rgb(75, 192, 192)', 'rgb(54, 162, 235)', 'rgb(153, 102, 255)', 
+                    'rgb(201, 203, 207)', 'rgb(255, 99, 255)',     
+                ],
+            }]
+        }
+    });
+
+    // RESTORED ORIGINAL BAR LOGIC[cite: 1]
+    const barlabels = {{months | tojson}};
+    const incomeData = {{ income_monthly | tojson}};
+    const expenseData = {{expense_monthly | tojson}};            
+    const bardata = {
+        labels: barlabels,
+        datasets: [{
+            label: 'Income',
+            data: barlabels.map(m=> incomeData[m] || 0),
+            backgroundColor: 'rgb(75, 192, 120)'
+        }, {
+            label: 'Expense',
+            data: barlabels.map(m=> expenseData[m] || 0),
+            backgroundColor: 'rgb(220, 53, 69)',
+        }]
+    };
+    new Chart(document.getElementById("barChart"),{
+        type: "bar",
+        data: bardata
+    });
+</script>
+{% endblock %}
