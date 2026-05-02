@@ -1,7 +1,51 @@
 {% extends "layout.html" %}
-{%block content%}
-<h1>Paisa Pulse</h1>
-<p>Track your money, understand your habits</p>
-<a href = "/login"><button type = "button" class = "btn btn-outline-primary">Login</button></a> 
-<a href = "/register"><button type = "button" class = "btn btn-outline-primary">Register</button></a>
-{%endblock%}
+
+{% block content %}
+<div class="px-4 py-5 my-5 text-center">
+    <!-- Icon or Logo placeholder -->
+    <div class="mb-4">
+        <i class="bi bi-wallet2 display-1 text-primary"></i>
+    </div>
+    
+    <h1 class="display-5 fw-bold text-body-emphasis">Paisa Pulse</h1>
+    
+    <div class="col-lg-6 mx-auto">
+        <p class="lead mb-4 text-secondary">
+            Master your finances. Track every transaction, analyze your spending habits, 
+            and take control of your financial future with ease.
+        </p>
+        
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+            <a href="/login" class="btn btn-primary btn-lg px-4 gap-3">Login to Account</a>
+            <a href="/register" class="btn btn-outline-secondary btn-lg px-4">Create Account</a>
+        </div>
+    </div>
+</div>
+
+<!-- Simple Features Section -->
+<div class="container px-4 py-5" id="featured-3">
+    <div class="row g-4 py-5 row-cols-1 row-cols-lg-3">
+        <div class="feature col">
+            <div class="feature-icon d-inline-flex align-items-center justify-content-center text-bg-primary bg-gradient fs-2 mb-3 p-2 rounded">
+                <i class="bi bi-graph-up"></i>
+            </div>
+            <h3 class="fs-2 text-body-emphasis">Smart Tracking</h3>
+            <p>Log income and expenses instantly. Categorize your spending to see exactly where your money goes.</p>
+        </div>
+        <div class="feature col">
+            <div class="feature-icon d-inline-flex align-items-center justify-content-center text-bg-primary bg-gradient fs-2 mb-3 p-2 rounded">
+                <i class="bi bi-cloud-check"></i>
+            </div>
+            <h3 class="fs-2 text-body-emphasis">Cloud Sync</h3>
+            <p>Access your financial data from any device. Your records are securely stored and always up to date.</p>
+        </div>
+        <div class="feature col">
+            <div class="feature-icon d-inline-flex align-items-center justify-content-center text-bg-primary bg-gradient fs-2 mb-3 p-2 rounded">
+                <i class="bi bi-file-earmark-arrow-down"></i>
+            </div>
+            <h3 class="fs-2 text-body-emphasis">Export Data</h3>
+            <p>Need your records for tax season? Export your entire transaction history to CSV with a single click.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
