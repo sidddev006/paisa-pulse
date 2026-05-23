@@ -23,7 +23,7 @@ Paisa Pulse is a personal finance tracker that lets you log every income and exp
 visualize your spending patterns with charts, and receive auto-generated insights about 
 your financial habits — all in a clean, simple web interface.
 
-🔗 **Live Demo:** [your-render-url.onrender.com](https://your-render-url.onrender.com)
+🔗 **Live Demo:** https://paisa-pulse.onrender.com/
 
 ---
 
