@@ -1,142 +1,265 @@
 {% extends "layout.html" %}
+
+{% block title %}Transaction History - Paisa Pulse{% endblock %}
+
 {% block content %}
-<div class="container mx-auto px-4">
-    <!-- Header with Back and Logout options -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+    
+    <!-- Header with Quick Action Bar -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h1 class="brand-font text-3xl font-extrabold text-slate-800">Transaction History</h1>
-            <div class="flex gap-4 mt-2">
-                <a href="/dashboard" class="text-blue-600 font-semibold text-sm hover:underline flex items-center gap-1">
-                    ← Back to Dashboard
-                </a>
+            <div class="flex items-center gap-3">
+                <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-slate-900">
+                    Transaction History
+                </h1>
+                <span class="px-3 py-1 bg-brand-50 border border-brand-200 text-brand-700 text-xs font-extrabold rounded-full">
+                    {{ total_count }} Record{{ 's' if total_count != 1 else '' }}
+                </span>
             </div>
+            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+                Filter, search, organize, and export your entire financial ledger
+            </p>
         </div>
-        <div class="flex gap-3">
-            <a href="/export" class="px-4 py-2 bg-slate-800 hover:bg-black text-white text-sm font-bold rounded-xl no-underline transition-all">
-                Export CSV
+
+        <div class="flex flex-wrap items-center gap-2.5">
+            <a href="{{ url_for('export', type=filter_type, category=filter_category, date_from=date_from, date_to=date_to, search=search) }}" 
+               class="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition-all flex items-center gap-2"
+               title="Export filtered data to CSV">
+                <i class="bi bi-file-earmark-arrow-down-fill text-emerald-400"></i>
+                <span>Export CSV</span>
             </a>
-            <a href="/logout" class="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 text-sm font-bold rounded-xl no-underline border border-rose-100 transition-all">
-                Log Out
+            <a href="{{ url_for('add') }}" class="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-brand-500/25 transition-all flex items-center gap-2">
+                <i class="bi bi-plus-circle-fill"></i>
+                <span>Add Record</span>
             </a>
         </div>
     </div>
 
-    <!-- Filter Toolbar -->
-    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-6">
-        <form method="get" action="/history" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-            <div>
-                <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Type</label>
-                <select name="type" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700">
-                    <option value="">All Types</option>
-                    <option value="income" {% if request.args.get('type') == 'income' %}selected{% endif %}>Income</option>
-                    <option value="expense" {% if request.args.get('type') == 'expense' %}selected{% endif %}>Expense</option>
-                </select>
+    <!-- Filter & Search Toolbar -->
+    <div class="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-sm">
+        <form method="get" action="{{ url_for('history') }}" id="filter-form" class="space-y-4">
+            
+            <!-- First Row: Search, Type, Category, Sort -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <!-- Search Input -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Search Note / Category</label>
+                    <div class="relative">
+                        <i class="bi bi-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" name="search" value="{{ search }}" placeholder="e.g. Swiggy, Salary..." 
+                               class="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 outline-none transition-all">
+                    </div>
+                </div>
+
+                <!-- Type Filter -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Type</label>
+                    <select name="type" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 outline-none transition-all">
+                        <option value="">All Types</option>
+                        <option value="income" {% if filter_type == 'income' %}selected{% endif %}>Income (+)</option>
+                        <option value="expense" {% if filter_type == 'expense' %}selected{% endif %}>Expense (-)</option>
+                    </select>
+                </div>
+
+                <!-- Category Filter -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Category</label>
+                    <select name="category" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 outline-none transition-all capitalize">
+                        <option value="">All Categories</option>
+                        {% for cat in available_categories %}
+                        <option value="{{ cat }}" {% if filter_category == cat|lower %}selected{% endif %}>{{ cat|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Sort By Filter -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Sort Order</label>
+                    <select name="sort" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 outline-none transition-all">
+                        <option value="date_desc" {% if sort_by == 'date_desc' %}selected{% endif %}>Newest First</option>
+                        <option value="date_asc" {% if sort_by == 'date_asc' %}selected{% endif %}>Oldest First</option>
+                        <option value="amount_desc" {% if sort_by == 'amount_desc' %}selected{% endif %}>Highest Amount</option>
+                        <option value="amount_asc" {% if sort_by == 'amount_asc' %}selected{% endif %}>Lowest Amount</option>
+                    </select>
+                </div>
+
             </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Category</label>
-                <select name="category" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700">
-                    <option value="">All Categories</option>
-                    {% for cat in ["Food", "Rent", "Entertainment", "Shopping", "Education", "Transport", "Health", "Other"] %}
-                    <option value="{{cat}}" {% if request.args.get('category') == cat %}selected{% endif %}>{{cat}}</option>
-                    {% endfor %}
-                </select>
+
+            <!-- Second Row: Date Range & Action Buttons -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-slate-100 items-end">
+                
+                <!-- Date From -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">From Date</label>
+                    <input type="date" name="date_from" id="date_from" value="{{ date_from }}" 
+                           class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 outline-none transition-all">
+                </div>
+
+                <!-- Date To -->
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">To Date</label>
+                    <input type="date" name="date_to" id="date_to" value="{{ date_to }}" 
+                           class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 outline-none transition-all">
+                </div>
+
+                <!-- Quick Date Range Presets -->
+                <div class="flex items-center gap-1.5 pb-1">
+                    <button type="button" onclick="setPreset('this_month')" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg transition-colors">This Month</button>
+                    <button type="button" onclick="setPreset('last_30')" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg transition-colors">Last 30D</button>
+                    <button type="button" onclick="setPreset('this_year')" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg transition-colors">This Year</button>
+                </div>
+
+                <!-- Filter Submit / Reset Buttons -->
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-md shadow-brand-500/20 transition-all flex items-center justify-center gap-1.5">
+                        <i class="bi bi-funnel-fill"></i>
+                        <span>Apply</span>
+                    </button>
+                    <a href="{{ url_for('history') }}" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all flex items-center justify-center">
+                        Reset
+                    </a>
+                </div>
+
             </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">From</label>
-                <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">To</label>
-                <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700">
-            </div>
-            <div class="flex gap-2">
-                <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all text-sm">
-                    Apply
-                </button>
-                <a href="/history" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg transition-all text-sm no-underline flex items-center justify-center">
-                    Reset
-                </a>
-            </div>
+
         </form>
     </div>
 
-    <!-- Live Statistics Bar (WITH FIXED DECIMALS) -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 text-center">
-        <div class="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
-            <p class="text-xs font-bold text-blue-500 uppercase">Transactions</p>
-            <p class="text-xl font-extrabold text-blue-900">{{total_count}}</p>
+    <!-- Live Statistics Strip for Filtered Results -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+        <div class="bg-white border border-slate-200/80 p-4 rounded-2xl shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Records Found</span>
+            <span class="font-heading text-xl font-extrabold text-slate-900">{{ total_count }}</span>
         </div>
-        <div class="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">
-            <p class="text-xs font-bold text-emerald-500 uppercase">Income</p>
-            <p class="text-xl font-extrabold text-emerald-900">₹{{ "{:,.2f}".format(summary_income) }}</p>
+
+        <div class="bg-emerald-50/70 border border-emerald-100 p-4 rounded-2xl">
+            <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider block mb-1">Filtered Income</span>
+            <span class="font-heading text-xl font-extrabold text-emerald-700">₹{{ summary_income | currency }}</span>
         </div>
-        <div class="bg-rose-50 border border-rose-100 p-4 rounded-2xl">
-            <p class="text-xs font-bold text-rose-500 uppercase">Expenses</p>
-            <p class="text-xl font-extrabold text-rose-900">₹{{ "{:,.2f}".format(summary_expense) }}</p>
+
+        <div class="bg-rose-50/70 border border-rose-100 p-4 rounded-2xl">
+            <span class="text-[11px] font-bold text-rose-600 uppercase tracking-wider block mb-1">Filtered Expenses</span>
+            <span class="font-heading text-xl font-extrabold text-rose-700">₹{{ summary_expense | currency }}</span>
         </div>
-        <div class="{% if net >= 0 %}bg-slate-900 text-white{% else %}bg-rose-600 text-white{% endif %} p-4 rounded-2xl shadow-lg">
-            <p class="text-xs font-bold opacity-70 uppercase">Net Result</p>
-            <p class="text-xl font-extrabold">₹{{ "{:,.2f}".format(net) }}</p>
+
+        <div class="{% if net >= 0 %}bg-slate-900 text-white{% else %}bg-rose-600 text-white{% endif %} p-4 rounded-2xl shadow-md">
+            <span class="text-[11px] font-bold opacity-80 uppercase tracking-wider block mb-1">Filtered Net Result</span>
+            <span class="font-heading text-xl font-extrabold">₹{{ net | currency }}</span>
         </div>
     </div>
 
-    <!-- History Table -->
-    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+    <!-- History Table Card -->
+    <div class="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left">
-                <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+                <thead class="bg-slate-50/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
                     <tr>
                         <th class="px-6 py-4">#</th>
-                        <th class="px-6 py-4">Date</th>
                         <th class="px-6 py-4">Category</th>
-                        <th class="px-6 py-4">Note</th>
+                        <th class="px-6 py-4">Note / Description</th>
+                        <th class="px-6 py-4">Date</th>
                         <th class="px-6 py-4">Type</th>
                         <th class="px-6 py-4 text-right">Amount</th>
                         <th class="px-6 py-4 text-center">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-50">
-                    {% for transaction in results %}
-                    <tr class="hover:bg-slate-50 transition-colors group">
-                        <td class="px-6 py-4 text-sm text-slate-400">{{loop.index}}</td>
-                        <td class="px-6 py-4 text-sm text-slate-600 font-medium">{{transaction["date"]}}</td>
-                        <td class="px-6 py-4 text-sm">
-                            <span class="px-3 py-1 bg-slate-100 text-slate-700 rounded-full font-semibold text-xs uppercase tracking-wider">
-                                {{transaction["category"]}}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-slate-500 italic">
-                            {{transaction["note"] if transaction["note"] else "—"}}
-                        </td>
+                <tbody class="divide-y divide-slate-100">
+                    {% for tx in results %}
+                    {% set cat_info = get_category_info(tx['category']) %}
+                    <tr class="hover:bg-slate-50/70 transition-colors group">
+                        <td class="px-6 py-4 text-xs font-bold text-slate-400">{{ loop.index }}</td>
+                        
+                        <!-- Category with Emoji badge -->
                         <td class="px-6 py-4">
-                            <span class="text-xs font-bold uppercase {{ 'text-emerald-600' if transaction['type'] == 'income' else 'text-rose-500' }}">
-                                {{transaction["type"]}}
+                            <div class="flex items-center gap-2.5">
+                                <span class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-sm shadow-xs">
+                                    {{ cat_info['emoji'] }}
+                                </span>
+                                <span class="text-sm font-bold text-slate-800 capitalize">{{ tx['category'] }}</span>
+                            </div>
+                        </td>
+
+                        <!-- Note -->
+                        <td class="px-6 py-4 text-xs text-slate-600 max-w-xs truncate">
+                            {{ tx['note'] if tx['note'] else "—" }}
+                        </td>
+
+                        <!-- Date -->
+                        <td class="px-6 py-4 text-xs font-semibold text-slate-500 whitespace-nowrap">
+                            {{ tx['date'] | date_fmt }}
+                        </td>
+
+                        <!-- Type Badge -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if tx['type'] == 'income' else 'bg-rose-50 text-rose-700 border border-rose-200' }}">
+                                {{ tx['type'] }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-sm font-bold text-right {{ 'text-emerald-600' if transaction['type'] == 'income' else 'text-slate-800' }}">
-                            {{ '+' if transaction['type'] == 'income' else '-' }} ₹{{ "{:,.2f}".format(transaction["amount"]) }}
+
+                        <!-- Amount -->
+                        <td class="px-6 py-4 text-sm font-extrabold text-right whitespace-nowrap {{ 'text-emerald-600' if tx['type'] == 'income' else 'text-slate-900' }}">
+                            {{ '+' if tx['type'] == 'income' else '-' }} ₹{{ tx['amount'] | currency }}
                         </td>
-                        <td class="px-6 py-4 text-center">
-                            <form method="post" action="/delete/{{transaction['id']}}" onsubmit="return confirm('Delete this record?');">
-                                <button type="submit" class="p-2 text-slate-300 hover:text-rose-600 transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                </button>
-                            </form>
+
+                        <!-- Actions -->
+                        <td class="px-6 py-4 text-center whitespace-nowrap">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <a href="{{ url_for('edit', id=tx['id']) }}" class="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all" title="Edit Transaction">
+                                    <i class="bi bi-pencil-square text-sm"></i>
+                                </a>
+                                <form method="post" action="{{ url_for('delete', id=tx['id']) }}" onsubmit="return confirm('Delete transaction of ₹{{ tx['amount'] | currency }} ({{ tx['category'] }})?');" class="inline">
+                                    <button type="submit" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete Transaction">
+                                        <i class="bi bi-trash3 text-sm"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="py-16 text-center">
+                            <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 text-2xl mx-auto mb-3">
+                                <i class="bi bi-search"></i>
+                            </div>
+                            <h3 class="font-heading font-bold text-base text-slate-800">No matching transactions found</h3>
+                            <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Try modifying your filters or clear all filters to view all recorded transactions.</p>
+                            <a href="{{ url_for('history') }}" class="inline-block mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">
+                                Clear Filters
+                            </a>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        
-        {% if not results %}
-        <div class="text-center py-20">
-            <h3 class="font-bold text-slate-800">No transactions found</h3>
-            <p class="text-slate-500 text-sm">Try adjusting your filters or adding a new transaction.</p>
-        </div>
-        {% endif %}
     </div>
+
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function setPreset(type) {
+        const fromInput = document.getElementById('date_from');
+        const toInput = document.getElementById('date_to');
+        const now = new Date();
+        
+        if (type === 'this_month') {
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            fromInput.value = firstDay.toISOString().split('T')[0];
+            toInput.value = now.toISOString().split('T')[0];
+        } else if (type === 'last_30') {
+            const d = new Date();
+            d.setDate(d.getDate() - 30);
+            fromInput.value = d.toISOString().split('T')[0];
+            toInput.value = now.toISOString().split('T')[0];
+        } else if (type === 'this_year') {
+            const firstDay = new Date(now.getFullYear(), 0, 1);
+            fromInput.value = firstDay.toISOString().split('T')[0];
+            toInput.value = now.toISOString().split('T')[0];
+        }
+        document.getElementById('filter-form').submit();
+    }
+</script>
 {% endblock %}
