@@ -96,6 +96,15 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
+        /* Disable number input spin buttons */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 flex flex-col min-h-full selection:bg-brand-500 selection:text-white">
@@ -275,6 +284,19 @@
                 }
             });
         }
+
+        // Prevent mouse wheel scrolling from changing number inputs
+        document.addEventListener('wheel', function(e) {
+            if (document.activeElement && document.activeElement.type === 'number') {
+                document.activeElement.blur();
+            }
+        }, { passive: true });
+
+        document.addEventListener('wheel', function(e) {
+            if (e.target && e.target.type === 'number') {
+                e.preventDefault();
+            }
+        }, { passive: false });
     </script>
 
     {% block scripts %}{% endblock %}
