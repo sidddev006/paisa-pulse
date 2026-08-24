@@ -15,6 +15,7 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from db import get_db, close_db, query_db, init_db, detect_db_type
+from pdf_generator import generate_pdf_report
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "paisa-pulse-default-secret-key-change-in-production")
@@ -598,6 +599,63 @@ def export():
     return Response(
         output.getvalue(),
         mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@app.route("/export/pdf")
+@login_required
+def export_pdf():
+    """Export transactions to a beautifully formatted PDF financial statement."""
+    user_id = session["user_id"]
+    username = session.get("username", "User")
+
+    filter_type = request.args.get("type", "").strip().lower()
+    filter_category = request.args.get("category", "").strip().lower()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    search = request.args.get("search", "").strip()
+
+    query = "SELECT * FROM transactions WHERE user_id = %s"
+    params = [user_id]
+    filter_parts = []
+
+    if filter_type in ["income", "expense"]:
+        query += " AND type = %s"
+        params.append(filter_type)
+        filter_parts.append(f"Type: {filter_type.capitalize()}")
+    if filter_category:
+        query += " AND LOWER(category) = %s"
+        params.append(filter_category)
+        filter_parts.append(f"Category: {filter_category.capitalize()}")
+    if date_from and date_to:
+        query += " AND date >= %s AND date <= %s"
+        params.append(date_from)
+        params.append(date_to)
+        filter_parts.append(f"Date: {date_from} to {date_to}")
+    elif date_from:
+        query += " AND date >= %s"
+        params.append(date_from)
+        filter_parts.append(f"From: {date_from}")
+    elif date_to:
+        query += " AND date <= %s"
+        params.append(date_to)
+        filter_parts.append(f"Up to: {date_to}")
+    if search:
+        query += " AND (LOWER(note) LIKE %s OR LOWER(category) LIKE %s)"
+        params.append(f"%{search.lower()}%")
+        params.append(f"%{search.lower()}%")
+        filter_parts.append(f"Search: '{search}'")
+
+    query += " ORDER BY date DESC, id DESC"
+    transactions = query_db(query, tuple(params))
+
+    filter_desc = " • ".join(filter_parts) if filter_parts else "All recorded transactions"
+    pdf_bytes = generate_pdf_report(username, transactions, filter_info=filter_desc)
+    filename = f"paisa_pulse_statement_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 

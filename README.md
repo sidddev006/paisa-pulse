@@ -49,8 +49,9 @@ Most people have no clear picture of where their money goes. Generic banking app
   - Sorting by Date (Newest/Oldest) and Amount (Highest/Lowest).
   - Live summary statistics for the filtered dataset.
 
-- **📥 One-Click CSV Export**
-  - Export your filtered or complete transaction history formatted for spreadsheets (Excel / Google Sheets) and tax preparation.
+- **📄 Professional PDF Statements & CSV Export**
+  - Download bank-grade PDF Financial Statements with dynamic KPI cards, custom date ranges, and formatted tables.
+  - Export filtered or complete transaction history formatted for spreadsheets (Excel / Google Sheets) and tax preparation.
 
 - **🛡️ Enterprise-Grade Resilience & Security**
   - Dual-engine database adapter: connects seamlessly to **Supabase PostgreSQL** in production and falls back to **SQLite (`finance.db`)** locally if `DATABASE_URL` is unset or unreachable.
@@ -64,6 +65,7 @@ Most people have no clear picture of where their money goes. Generic banking app
 | Category | Technology |
 |---|---|
 | **Backend** | Python 3, Flask 3.x, Werkzeug, Gunicorn |
+| **PDF Engine** | ReportLab 4.x (Automated Statement Generator) |
 | **Database** | PostgreSQL (Supabase / Render Postgres) with automatic SQLite local fallback |
 | **Frontend** | Jinja2 Templates, Tailwind CSS, Bootstrap Icons, Google Fonts (Plus Jakarta Sans & Outfit) |
 | **Charts** | Chart.js 4.x (Doughnut & Bar Charts) |
