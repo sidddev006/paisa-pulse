@@ -10,7 +10,7 @@ load_dotenv()
 
 from flask import (
     Flask, render_template, request, redirect, session, 
-    url_for, g, flash, Response, jsonify
+    url_for, g, flash, Response, jsonify, send_from_directory
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -104,6 +104,15 @@ def login_required(f):
     return decorated
 
 # --- Routes ---
+
+@app.route("/favicon.ico")
+def favicon():
+    """Serve favicon icon directly."""
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "favicon.ico",
+        mimetype="image/vnd.microsoft.icon"
+    )
 
 @app.route("/")
 def index():
