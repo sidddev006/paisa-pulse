@@ -1,64 +1,56 @@
-# 💰 Paisa Pulse - Personal Finance Tracker
-Python | Flask | PostgreSQL
+# 💸 Paisa Pulse — Smart Personal Finance Tracker
 
-> Track your money, understand your habits.
+[![Flask](https://img.shields.io/badge/Framework-Flask%203.x-emerald)](https://flask.palletsprojects.com/)
+[![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%20%7C%20Supabase-336791)](https://supabase.com/)
+[![TailwindCSS](https://img.shields.io/badge/Design-Tailwind%20CSS-38bdf8)](https://tailwindcss.com/)
+[![Render](https://img.shields.io/badge/Deploy-Render-46e3b7)](https://render.com/)
 
-Built by Siddharth Mishra
+> **Paisa Pulse** is a modern, responsive personal finance and wealth management web application built with Python (Flask), PostgreSQL (Supabase / Render), and Tailwind CSS. It empowers users to easily log income & expenses, analyze monthly cash flow with interactive visual charts, filter financial history, and download instant CSV reports.
 
----
-
-## 🎯 The Problem
-
-Most people have no clear picture of where their money goes. Generic banking apps show 
-transactions but offer little insight. Common problems:
-
-- No visual breakdown of spending habits
-- No way to compare spending across months
-- Raw transaction lists with no actionable insights
-- No easy way to export or analyze your own data
-
-## 💡 The Solution
-
-Paisa Pulse is a personal finance tracker that lets you log every income and expense, 
-visualize your spending patterns with charts, and receive auto-generated insights about 
-your financial habits — all in a clean, simple web interface.
-
-🔗 **Live Demo:** https://paisa-pulse.onrender.com/
+*Built by **Siddharth Mishra** ([@sidddev006](https://github.com/sidddev006))*
 
 ---
 
-## ✨ Features
+## 🎯 The Problem & The Solution
 
-### 🔐 User Authentication
-- Secure registration and login
-- Password hashing with Werkzeug
-- Session-based authentication
+Most people have no clear picture of where their money goes. Generic banking apps show transactions but offer little insight:
+- No visual breakdown of spending habits across categories
+- No clean way to compare spending across consecutive months
+- Raw transaction lists with no actionable or automated insights
+- Clunky interfaces and lack of simple data export
 
-### 📊 Dashboard
-- **Summary Cards** — Total balance, income, and expenses at a glance
-- **Doughnut Chart** — Visual breakdown of spending by category (Food, Rent, Transport etc.)
-- **Bar Chart** — 6-month income vs expense trend
-- **Monthly Insights** — Auto-generated text insights like:
-  - "You saved ₹8,000 this month"
-  - "Your biggest expense is Food at ₹3,200 (42% of expenses)"
-  - "You're overspending compared to last month by ₹1,500"
-- **Recent Transactions** — Last 5 transactions at a glance
+**Paisa Pulse** solves this with an intuitive, ultra-fast interface that lets you log every income and expense, visualize your cash flow trends with Chart.js, filter your entire ledger, and receive smart financial alerts.
 
-### ➕ Add Transactions
-- Log income or expenses with category, amount, date, and optional notes
-- Dynamic category dropdown — changes based on income or expense type
-- Instant redirect to dashboard with success confirmation
+---
 
-### 📋 Transaction History
-- Full transaction table with all records
-- Filter by type, category, and date range
-- Live summary bar showing filtered totals
-- Color-coded rows — green for income, red for expenses
-- Delete any transaction with one click
+## ✨ Key Features
 
-### 📤 CSV Export
-- Download all transactions as a .csv file
-- Compatible with Excel and Google Sheets
+- **📊 Comprehensive Financial Dashboard**
+  - Real-time Total Balance, Income, Expense, and Savings Rate metrics.
+  - Interactive **Chart.js** visuals (Category distribution doughnut chart & 6-month monthly cash flow bar chart).
+  - Automated financial insights (savings milestone detection, overspending warnings vs previous month, and top expense category analysis).
+  - Quick transaction activity feed.
+
+- **➕ Smart Transaction Logging & Editing**
+  - Log both **Income** and **Expenses** with intuitive emoji-tagged categories.
+  - One-tap quick amount buttons (`+₹100`, `+₹500`, `+₹1,000`, `+₹5,000`, `+₹10,000`).
+  - Quick date selectors (`Today`, `Yesterday`).
+  - Full **Edit Transaction** support to update past amounts, categories, dates, or notes.
+
+- **🔍 Advanced Search & Filter Engine**
+  - Instant keyword search across notes and categories.
+  - Granular filters by Type (`Income` / `Expense`), Category, and Custom Date Ranges.
+  - One-click date range presets (`This Month`, `Last 30 Days`, `This Year`).
+  - Sorting by Date (Newest/Oldest) and Amount (Highest/Lowest).
+  - Live summary statistics for the filtered dataset.
+
+- **📥 One-Click CSV Export**
+  - Export your filtered or complete transaction history formatted for spreadsheets (Excel / Google Sheets) and tax preparation.
+
+- **🛡️ Enterprise-Grade Resilience & Security**
+  - Dual-engine database adapter: connects seamlessly to **Supabase PostgreSQL** in production and falls back to **SQLite (`finance.db`)** locally if `DATABASE_URL` is unset or unreachable.
+  - Automatic table creation and index migration on startup (`users` and `transactions` tables).
+  - Cryptographic password hashing (`scrypt`) with secure session cookies.
 
 ---
 
@@ -66,194 +58,106 @@ your financial habits — all in a clean, simple web interface.
 
 | Category | Technology |
 |---|---|
-| Backend | Flask (Python) |
-| Database | PostgreSQL |
-| Authentication | Werkzeug security |
-| Frontend | Jinja2 templates, Bootstrap 5 |
-| Charts | Chart.js |
-| Deployment | Render.com |
+| **Backend** | Python 3, Flask 3.x, Werkzeug, Gunicorn |
+| **Database** | PostgreSQL (Supabase / Render Postgres) with automatic SQLite local fallback |
+| **Frontend** | Jinja2 Templates, Tailwind CSS, Bootstrap Icons, Google Fonts (Plus Jakarta Sans & Outfit) |
+| **Charts** | Chart.js 4.x (Doughnut & Bar Charts) |
+| **Deployment** | Render.com Web Service (`gunicorn app:app`) |
 
 ---
 
-## 💡 The Insights Engine
+## 🚀 Getting Started
 
-The monthly insight card auto-generates observations using simple but effective logic:
+### 1. Prerequisites
+- Python 3.10+
+- (Optional) A free [Supabase](https://supabase.com) account or [Render PostgreSQL](https://render.com) instance.
 
-```python
-# Biggest expense category
-biggest = max(expense_by_category, key=lambda row: row["amount"])
-percentage = round((biggest_amount / this_month_expense) * 100)
+### 2. Installation & Setup
+```bash
+# Clone the repository
+git clone https://github.com/sidddev006/paisa-pulse.git
+cd paisa-pulse
 
-# Savings this month
-saved = this_month_income - this_month_expense
+# Create and activate virtual environment
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On Linux/macOS:
+source .venv/bin/activate
 
-# Overspending vs last month
-overspending = this_month_expense - last_month_expense
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-Just 3 calculations in Python — but it reads like a smart financial assistant when 
-you demo it.
+### 3. Environment Configuration
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+
+Configure your `.env` variables:
+```env
+SECRET_KEY=your-custom-secret-key
+
+# Optional: Supabase PostgreSQL URI (If omitted or unreachable, SQLite is used automatically)
+DATABASE_URL=postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
+```
+
+### 4. Run the Application
+```bash
+python app.py
+```
+Open your browser at [http://127.0.0.1:5000](http://127.0.0.1:5000).
+
+---
+
+## 🌐 Deploying to Render
+
+1. **Push your code to GitHub**.
+2. Go to [Render Dashboard](https://dashboard.render.com/) and click **New +** -> **Web Service**.
+3. Connect your `paisa-pulse` repository.
+4. Settings:
+   - **Environment**: `Python`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn app:app`
+5. **Environment Variables**:
+   - `SECRET_KEY`: (Generate a random secure string)
+   - `DATABASE_URL`: (Paste your Supabase Session Pooler or Render PostgreSQL connection string)
+6. Click **Deploy Web Service**!
+
+> **Supabase Tip for Render**: For Render (which uses IPv4), use the **Supabase Session Pooler** connection string (port `5432` or `6543`) from your Supabase Project Settings -> Database -> Connection String.
 
 ---
 
 ## 📁 Project Structure
-paisa-pulse/
-├── app.py                 # Main Flask application
-├── requirements.txt       # Python dependencies
-├── README.md             # This file
-│
-└── templates/
-├── layout.html        # Base template with Bootstrap navbar
-├── index.html         # Landing page
-├── register.html      # Registration form
-├── login.html         # Login form
-├── dashboard.html     # Main dashboard with charts and insights
-├── add.html           # Add transaction form
-└── history.html       # Full transaction history with filters
 
----
-
-## 🗄️ Database Schema
-
-```sql
--- Users table
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    hash TEXT NOT NULL
-);
-
--- Transactions table
-CREATE TABLE transactions (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    type TEXT NOT NULL,
-    category TEXT NOT NULL,
-    amount REAL NOT NULL,
-    note TEXT,
-    date DATE NOT NULL
-);
 ```
-
----
-
-## 🚀 How to Run Locally
-
-**Prerequisites**
-- Python 3.8+
-- PostgreSQL database (or use the live demo)
-
-**Installation**
-
-1. Clone the repository
-git clone https://github.com/sidddev006/paisa-pulse.git
-cd paisa-pulse
-
-2. Install dependencies
-pip install -r requirements.txt
-
-3. Set your database URL
-   
-   Create a `.env` file and add:
-DATABASE_URL=your_postgresql_url_here
-
-4. Run the application
-python app.py
-
-5. Open in browser
-http://localhost:5000
-
----
-
-## 🎯 User Journey
-
-1. **Register/Login** → Create account with secure password hashing
-2. **Add Transactions** → Log income and expenses with category and notes
-3. **Dashboard** → View charts, insights, and recent transactions
-4. **History** → Filter and browse all transactions
-5. **Export** → Download data as CSV for further analysis
-6. **Logout** → Secure session clearing
-
----
-
-## 🧠 Technical Challenges Solved
-
-### 1. Dynamic SQL Filtering
-**Problem:** History page needed to support multiple optional filters 
-simultaneously — type, category, and date range in any combination.
-
-**Solution:** Built the SQL query incrementally, appending `AND` clauses only 
-when a filter value is present. This keeps the query clean and avoids 
-over-fetching.
-
-### 2. Monthly Data Aggregation
-**Problem:** Bar chart needed income and expense totals grouped by month for 
-the last 6 months, with zero values for months with no transactions.
-
-**Solution:** Used PostgreSQL's `TO_CHAR` for date formatting and `GROUP BY` 
-month and type, then mapped results into two dictionaries. JavaScript fills 
-in missing months with 0.
-
-### 3. SQLite to PostgreSQL Migration
-**Problem:** SQLite works locally but Render.com doesn't support persistent 
-SQLite files in production.
-
-**Solution:** Migrated to PostgreSQL — updated all `?` placeholders to `%s`, 
-replaced `strftime` with `TO_CHAR`, and used `psycopg2` with `DictCursor` 
-for dictionary-style row access.
-
----
-
-## 📚 What I Learned
-
-**Technical Skills**
-- Building full-stack web applications with Flask
-- Database design and SQL queries
-- Data visualization with Chart.js
-- Migrating from SQLite to PostgreSQL for production
-- Deploying Flask apps on Render.com
-- Session management and authentication
-
-**Problem-Solving**
-- Debugging database query issues across environments
-- Handling edge cases in financial calculations (empty months, zero expenses)
-- Managing state across routes with GET parameters
-
----
-
-## 🔮 Future Enhancements
-- [ ] Budget goals — set monthly limits per category with alerts
-- [ ] Dark mode
-- [ ] PDF export
-- [ ] Recurring transactions
-- [ ] Multi-currency support
-
----
-
-## 💭 Development Notes
-
-This project was built independently with AI used as a Socratic tutor — 
-asking guiding questions rather than providing direct answers. The database 
-design, route logic, SQL queries, and insight calculations were all reasoned 
-through and written by me.
-
----
-
-## 🙏 Acknowledgments
-
-- Bootstrap & Chart.js for the frontend frameworks
-- Render.com for hosting
-- AI assistance for guided learning and debugging support
+paisa-pulse/
+├── app.py                 # Flask application, routes, controllers, Jinja filters
+├── db.py                  # Dual-engine DB adapter (PostgreSQL + SQLite fallback)
+├── requirements.txt       # Clean deployment dependencies
+├── Procfile               # Render / Gunicorn web server process file
+├── render.yaml            # Render Blueprint deployment definition
+├── .env.example           # Environment configuration template
+├── templates/
+│   ├── layout.html        # Modern responsive shell & glassmorphic header
+│   ├── index.html         # High-converting SaaS landing page
+│   ├── dashboard.html     # Analytics dashboard with Chart.js charts
+│   ├── history.html       # Search, filter, sort & CSV export view
+│   ├── add.html           # Transaction creation form with emoji picker
+│   ├── edit.html          # Transaction edit view
+│   ├── login.html         # User authentication sign in
+│   └── register.html      # Account creation with validation
+```
 
 ---
 
 ## 👤 Author
 
-Siddharth Mishra
-GitHub: @sidddev006
+**Siddharth Mishra**
+- GitHub: [@sidddev006](https://github.com/sidddev006)
 
 ---
 
-📬 Questions or feedback? Feel free to reach out via GitHub!
-
-This is Paisa Pulse. Track your money, understand your habits. 💰
+## 📄 License
+This project is open-source and available under the [MIT License](LICENSE).
