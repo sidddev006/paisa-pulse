@@ -1,375 +1,584 @@
-import sqlite3
-from dotenv import load_dotenv
-load_dotenv()
-import csv
-import io  
 import os
-import psycopg2
-from flask import g
-from psycopg2.extras import DictCursor
-from flask import Flask, render_template, request, redirect, session, url_for, g, make_response, flash, Response
-from werkzeug.security import generate_password_hash, check_password_hash
-from functools import wraps
+import csv
+import io
 from datetime import datetime, date, timedelta
-import urllib.parse
+from functools import wraps
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+from flask import (
+    Flask, render_template, request, redirect, session, 
+    url_for, g, flash, Response, jsonify
+)
+from werkzeug.security import generate_password_hash, check_password_hash
+
+from db import get_db, close_db, query_db, init_db, detect_db_type
 
 app = Flask(__name__)
-app.secret_key = "something"
+app.secret_key = os.environ.get("SECRET_KEY", "paisa-pulse-default-secret-key-change-in-production")
 
-DATABASE = "finance.db"
+# Register teardown to close db connections
+app.teardown_appcontext(close_db)
 
-raw_url = os.environ.get("DATABASE_URL")
-if raw_url and "://password@" not in raw_url:
-    pass
+# Auto-initialize database on application load (works for both direct python and gunicorn WSGI)
+with app.app_context():
+    init_db()
 
-DATABASE_URL = raw_url
+# --- Category Meta Definitions ---
+CATEGORY_ICONS = {
+    # Expenses
+    "food": {"icon": "bi-cup-hot-fill", "color": "amber", "label": "Food & Dining", "emoji": "🍔"},
+    "rent": {"icon": "bi-house-door-fill", "color": "indigo", "label": "Rent & Housing", "emoji": "🏠"},
+    "transport": {"icon": "bi-car-front-fill", "color": "blue", "label": "Transport", "emoji": "🚗"},
+    "entertainment": {"icon": "bi-film", "color": "purple", "label": "Entertainment", "emoji": "🎬"},
+    "shopping": {"icon": "bi-bag-heart-fill", "color": "pink", "label": "Shopping", "emoji": "🛍️"},
+    "health": {"icon": "bi-heart-pulse-fill", "color": "rose", "label": "Health & Medical", "emoji": "💊"},
+    "education": {"icon": "bi-book-half", "color": "cyan", "label": "Education", "emoji": "📚"},
+    "utilities": {"icon": "bi-lightning-charge-fill", "color": "yellow", "label": "Bills & Utilities", "emoji": "⚡"},
+    "other": {"icon": "bi-three-dots", "color": "slate", "label": "Other Expense", "emoji": "📦"},
+    # Income
+    "salary": {"icon": "bi-briefcase-fill", "color": "emerald", "label": "Salary", "emoji": "💼"},
+    "freelance": {"icon": "bi-laptop", "color": "teal", "label": "Freelance", "emoji": "💻"},
+    "investment": {"icon": "bi-graph-up-arrow", "color": "green", "label": "Investments", "emoji": "📈"},
+    "gift": {"icon": "bi-gift-fill", "color": "violet", "label": "Gifts", "emoji": "🎁"},
+    "business": {"icon": "bi-shop", "color": "sky", "label": "Business", "emoji": "🏢"},
+    "other_income": {"icon": "bi-cash-coin", "color": "emerald", "label": "Other Income", "emoji": "💰"}
+}
 
-#---DB helpers---
-def get_db():
-    if "db" not in g:
-        g.db = psycopg2.connect(DATABASE_URL, cursor_factory=DictCursor)
-    return g.db
+def get_category_info(cat_name):
+    """Normalize and get category metadata."""
+    if not cat_name:
+        return {"icon": "bi-tag-fill", "color": "slate", "label": "General", "emoji": "🏷️"}
+    normalized = cat_name.strip().lower()
+    return CATEGORY_ICONS.get(normalized, {
+        "icon": "bi-tag-fill", 
+        "color": "blue", 
+        "label": cat_name.capitalize(), 
+        "emoji": "🏷️"
+    })
 
-@app.teardown_appcontext
-def close_db(e = None):
-    db = g.pop("db", None)
-    if db:
-        db.close()
+# --- Jinja Context Processors & Filters ---
+@app.context_processor
+def inject_globals():
+    return {
+        "current_year": datetime.now().year,
+        "db_type": getattr(g, "db_type", detect_db_type()),
+        "get_category_info": get_category_info
+    }
 
-def init_db():
-    # Connect directly to run setup
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    
-    # PostgreSQL uses SERIAL for auto-incrementing IDs[cite: 1]
-    # Dates are handled more strictly as DATE types[cite: 1]
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users(
-            id SERIAL PRIMARY KEY,
-            username TEXT NOT NULL UNIQUE,
-            hash TEXT NOT NULL
-        )
-    """)
-    
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS transactions(
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL REFERENCES users(id), 
-            type TEXT NOT NULL,
-            category TEXT NOT NULL,
-            amount REAL NOT NULL,
-            note TEXT,
-            date DATE NOT NULL
-        )
-    """)
-    
-    conn.commit() # Important: Changes aren't saved until committed[cite: 1]
-    cur.close()
-    conn.close()
+@app.template_filter("currency")
+def format_currency(value):
+    """Format numeric values with Indian comma notation and 2 decimals."""
+    if value is None:
+        return "0.00"
+    try:
+        val = float(value)
+        # Format with standard comma grouping
+        return f"{val:,.2f}"
+    except (ValueError, TypeError):
+        return "0.00"
 
+@app.template_filter("date_fmt")
+def format_date_filter(value):
+    """Format dates to human readable string."""
+    if not value:
+        return ""
+    if isinstance(value, (datetime, date)):
+        return value.strftime("%d %b %Y")
+    try:
+        dt = datetime.strptime(str(value)[:10], "%Y-%m-%d")
+        return dt.strftime("%d %b %Y")
+    except Exception:
+        return str(value)
+
+# --- Authentication Helper ---
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user_id" not in session:
-            return redirect("/login")
+            flash("Please sign in to access this page.", "warning")
+            return redirect(url_for("login", next=request.path))
         return f(*args, **kwargs)
     return decorated
 
-#-- Routes----
+# --- Routes ---
+
 @app.route("/")
 def index():
-    # Landing page
+    """Landing Page"""
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
     return render_template("index.html")
+
+@app.route("/health")
+def health():
+    """Health check endpoint for Render / monitoring."""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "database": detect_db_type()
+    })
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
+    """Register a new user account."""
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
+
     if request.method == "POST":
-        username = request.form.get("username")
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        pass_confirm = request.form.get("pass_confirm", "")
+
         if not username:
-            flash("invalid username")
+            flash("Username is required.", "danger")
             return render_template("register.html")
-            
-        db = get_db()
-        cur = db.cursor() # Create cursor
-        
-        cur.execute("SELECT * FROM users WHERE username = %s", (username,))
-        users = cur.fetchone()
-        
-        if users:
-            cur.close()
-            flash("username already exists")
-            return render_template("register.html")
-            
-        password = request.form.get("password")
-        pass_confirm = request.form.get("pass_confirm")
+
+        if len(username) < 3:
+            flash("Username must be at least 3 characters long.", "danger")
+            return render_template("register.html", username=username)
+
+        if not password:
+            flash("Password is required.", "danger")
+            return render_template("register.html", username=username)
+
+        if len(password) < 6:
+            flash("Password must be at least 6 characters long.", "danger")
+            return render_template("register.html", username=username)
+
         if password != pass_confirm:
-            cur.close()
-            flash("Both the passwords should be the same")
+            flash("Passwords do not match.", "danger")
+            return render_template("register.html", username=username)
+
+        existing_user = query_db("SELECT id FROM users WHERE username = %s", (username,), one=True)
+        if existing_user:
+            flash("That username is already taken. Please choose another.", "warning")
             return render_template("register.html")
-            
+
         pass_hash = generate_password_hash(password)
-        
-        # INSERT requires commit on the connection object
-        cur.execute("INSERT INTO users(username, hash) VALUES(%s,%s)", (username, pass_hash))
-        db.commit() 
-        
-        cur.execute("SELECT id FROM users WHERE username = %s", (username,))
-        rows = cur.fetchone()
-        
-        session["user_id"] = rows["id"]
-        session["username"] = username
-        
-        cur.close() # Close cursor
-        return redirect("/dashboard")
-        
+        query_db("INSERT INTO users(username, hash) VALUES(%s, %s)", (username, pass_hash), commit=True)
+
+        user = query_db("SELECT id, username FROM users WHERE username = %s", (username,), one=True)
+        session["user_id"] = user["id"]
+        session["username"] = user["username"]
+
+        flash(f"Welcome aboard, {username}! Your account has been created.", "success")
+        return redirect(url_for("dashboard"))
+
     return render_template("register.html")
 
-@app.route("/login", methods=["POST", "GET"])
+@app.route("/login", methods=["GET", "POST"])
 def login():
+    """User Sign In."""
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
+
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
-        
-        db = get_db()
-        cur = db.cursor()
-        
-        cur.execute("SELECT * FROM users WHERE username = %s", (username, ))
-        check_username = cur.fetchone()
-        
-        if not check_username:
-            cur.close()
-            flash("Username does not exists")
-            return render_template("login.html")
-            
-        if not check_password_hash(check_username["hash"], password):
-            cur.close()
-            flash("incorrect password")
-            return render_template("login.html")
-            
-        session["username"] = username
-        session["user_id"] = check_username["id"]
-        
-        cur.close()
-        return redirect("/dashboard")
-        
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if not username or not password:
+            flash("Please enter both username and password.", "danger")
+            return render_template("login.html", username=username)
+
+        user = query_db("SELECT * FROM users WHERE username = %s", (username,), one=True)
+
+        if not user or not check_password_hash(user["hash"], password):
+            flash("Invalid username or password.", "danger")
+            return render_template("login.html", username=username)
+
+        session["user_id"] = user["id"]
+        session["username"] = user["username"]
+
+        next_page = request.args.get("next")
+        flash(f"Welcome back, {user['username']}!", "success")
+        return redirect(next_page if next_page else url_for("dashboard"))
+
     return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    """User Log Out."""
+    session.clear()
+    flash("You have been signed out.", "info")
+    return redirect(url_for("index"))
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    """Main Financial Dashboard."""
+    user_id = session["user_id"]
+
+    # 1. Total Income & Expense Totals (All-time)
+    income_row = query_db(
+        "SELECT SUM(amount) as total FROM transactions WHERE user_id = %s AND type = 'income'", 
+        (user_id,), one=True
+    )
+    expense_row = query_db(
+        "SELECT SUM(amount) as total FROM transactions WHERE user_id = %s AND type = 'expense'", 
+        (user_id,), one=True
+    )
+
+    total_income = float(income_row["total"] or 0) if income_row else 0.0
+    total_expense = float(expense_row["total"] or 0) if expense_row else 0.0
+    balance = total_income - total_expense
+
+    # 2. Category Breakdown for Expenses (All-time or recent)
+    category_rows = query_db(
+        "SELECT category, SUM(amount) as total FROM transactions WHERE user_id = %s AND type = 'expense' GROUP BY category ORDER BY total DESC",
+        (user_id,)
+    )
+    expense_by_category = [
+        {"category": row["category"], "amount": float(row["total"] or 0)} 
+        for row in category_rows
+    ]
+
+    expense_labels = [row["category"].capitalize() for row in expense_by_category]
+    expense_amounts = [row["amount"] for row in expense_by_category]
+
+    # 3. Monthly Trends (Past 6 Months)
+    # Calculate past 6 months dates in Python for universal DB compatibility
+    today = date.today()
+    six_months_ago = (today.replace(day=1) - timedelta(days=150)).replace(day=1)
+
+    all_recent = query_db(
+        "SELECT type, amount, date FROM transactions WHERE user_id = %s AND date >= %s ORDER BY date ASC",
+        (user_id, six_months_ago.strftime("%Y-%m-%d"))
+    )
+
+    income_monthly = {}
+    expense_monthly = {}
+
+    for row in all_recent:
+        d_str = str(row["date"])[:7] # Format: YYYY-MM
+        amt = float(row["amount"] or 0)
+        if row["type"] == "income":
+            income_monthly[d_str] = income_monthly.get(d_str, 0.0) + amt
+        else:
+            expense_monthly[d_str] = expense_monthly.get(d_str, 0.0) + amt
+
+    # Generate sequence of last 6 month labels
+    months = []
+    month_display_labels = []
+    for i in range(5, -1, -1):
+        # Approximate month subtraction safely
+        year = today.year
+        month = today.month - i
+        while month <= 0:
+            month += 12
+            year -= 1
+        m_key = f"{year:04d}-{month:02d}"
+        months.append(m_key)
+        m_date = date(year, month, 1)
+        month_display_labels.append(m_date.strftime("%b %Y"))
+
+    current_month_key = today.strftime("%Y-%m")
+    this_month_income = income_monthly.get(current_month_key, 0.0)
+    this_month_expense = expense_monthly.get(current_month_key, 0.0)
+
+    # Previous Month Key
+    prev_year = today.year
+    prev_month = today.month - 1
+    if prev_month <= 0:
+        prev_month = 12
+        prev_year -= 1
+    prev_month_key = f"{prev_year:04d}-{prev_month:02d}"
+    last_month_expense = expense_monthly.get(prev_month_key, 0.0)
+
+    saved_this_month = this_month_income - this_month_expense
+    overspending = this_month_expense - last_month_expense if last_month_expense > 0 else 0.0
+    savings_rate = round((saved_this_month / this_month_income * 100)) if this_month_income > 0 and saved_this_month > 0 else 0
+
+    # 4. Biggest Expense Category
+    if expense_by_category:
+        biggest_category = expense_by_category[0]["category"].capitalize()
+        biggest_amount = expense_by_category[0]["amount"]
+        biggest_percentage = round((biggest_amount / total_expense * 100)) if total_expense > 0 else 0
+    else:
+        biggest_category = "None"
+        biggest_amount = 0.0
+        biggest_percentage = 0
+
+    # 5. Recent 5 Transactions
+    recent_transactions = query_db(
+        "SELECT * FROM transactions WHERE user_id = %s ORDER BY date DESC, id DESC LIMIT 5",
+        (user_id,)
+    )
+
+    # 6. Total Transactions Count
+    count_row = query_db("SELECT COUNT(*) as total FROM transactions WHERE user_id = %s", (user_id,), one=True)
+    total_transactions_count = count_row["total"] if count_row else 0
+
+    return render_template(
+        "dashboard.html",
+        balance=balance,
+        total_income=total_income,
+        total_expense=total_expense,
+        this_month_income=this_month_income,
+        this_month_expense=this_month_expense,
+        saved=saved_this_month,
+        overspending=overspending,
+        savings_rate=savings_rate,
+        biggest_category=biggest_category,
+        biggest_amount=biggest_amount,
+        percentage=biggest_percentage,
+        expense_by_category=expense_by_category,
+        recent_transactions=recent_transactions,
+        total_transactions_count=total_transactions_count,
+        expense_labels=expense_labels,
+        expense_amounts=expense_amounts,
+        income_monthly=income_monthly,
+        expense_monthly=expense_monthly,
+        months=months,
+        month_display_labels=month_display_labels
+    )
 
 @app.route("/add", methods=["GET", "POST"])
 @login_required
 def add():
+    """Add a new transaction."""
     if request.method == "POST":
-        type = request.form.get("type")
-        category = request.form.get("category")
-        amount = request.form.get("amount")
-        date = request.form.get("date")
-        note = request.form.get("note")
-        
-        if not amount or not category or not type:
-            flash("Please fill all the required fields")
+        t_type = request.form.get("type", "").strip().lower()
+        category = request.form.get("category", "").strip().lower()
+        amount_raw = request.form.get("amount", "").strip()
+        t_date = request.form.get("date", "").strip()
+        note = request.form.get("note", "").strip()
+
+        if t_type not in ["income", "expense"]:
+            flash("Please choose a valid transaction type.", "danger")
             return render_template("add.html")
-            
-        db = get_db()
-        cur = db.cursor()
-        
+
+        if not category:
+            flash("Please select a category.", "danger")
+            return render_template("add.html")
+
+        try:
+            amount = float(amount_raw)
+            if amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            flash("Please enter a valid amount greater than zero.", "danger")
+            return render_template("add.html")
+
+        if not t_date:
+            t_date = date.today().strftime("%Y-%m-%d")
+
         user_id = session["user_id"]
-        
-        # Ensure %s is used and connection is committed
-        cur.execute("INSERT INTO transactions(type, category, amount, date, note, user_id) VALUES(%s,%s,%s,%s,%s,%s)", 
-                    (type, category, amount, date, note, user_id))
-        db.commit()
-        
-        cur.close()
-        flash("Transaction added successfully!")
-        return redirect("/dashboard")
-        
-    return render_template("add.html")
+        query_db(
+            "INSERT INTO transactions(user_id, type, category, amount, note, date) VALUES(%s, %s, %s, %s, %s, %s)",
+            (user_id, t_type, category, amount, note, t_date),
+            commit=True
+        )
 
-@app.route("/dashboard", methods=["GET"])
+        flash(f"{t_type.capitalize()} of ₹{amount:,.2f} added successfully!", "success")
+        return redirect(url_for("dashboard"))
+
+    return render_template("add.html", today=date.today().strftime("%Y-%m-%d"))
+
+@app.route("/edit/<int:id>", methods=["GET", "POST"])
 @login_required
-def dashboard():
+def edit(id):
+    """Edit an existing transaction."""
     user_id = session["user_id"]
-    db = get_db()
-    cur = db.cursor() # Create a cursor for PostgreSQL
+    transaction = query_db(
+        "SELECT * FROM transactions WHERE id = %s AND user_id = %s",
+        (id, user_id),
+        one=True
+    )
 
-    # Change 1: Use %s placeholders
-    cur.execute("SELECT SUM(amount) as amount FROM transactions WHERE user_id = %s AND type = %s", (user_id, "income"))
-    total_income_row = cur.fetchone()
-    # Access by key because we used DictCursor in get_db()
-    total_income = total_income_row["amount"] if total_income_row and total_income_row["amount"] else 0
-    
-    cur.execute("SELECT SUM(amount) as amount FROM transactions WHERE user_id = %s AND type = %s", (user_id, "expense"))
-    total_expenses_row = cur.fetchone()
-    total_expenses = total_expenses_row["amount"] if total_expenses_row and total_expenses_row["amount"] else 0
-    
-    balance = total_income - total_expenses
-    
-    cur.execute("SELECT category, SUM(amount) as amount FROM transactions WHERE user_id = %s AND type = %s GROUP BY category", (user_id, "expense"))
-    expense_by_category = cur.fetchall()
-    
-    cur.execute("SELECT * FROM transactions WHERE user_id = %s ORDER BY date DESC LIMIT 5", (user_id, ))
-    recent_transactions = cur.fetchall()
+    if not transaction:
+        flash("Transaction not found or you don't have permission to edit it.", "danger")
+        return redirect(url_for("history"))
 
-    # Change 2: Use TO_CHAR and CURRENT_DATE for PostgreSQL date math
-    # PostgreSQL doesn't have strftime or date('now', '-6 months')
-    cur.execute("""
-        SELECT TO_CHAR(date, 'YYYY-MM') as month, SUM(amount) as total, type 
-        FROM transactions 
-        WHERE date >= CURRENT_DATE - INTERVAL '6 months' AND user_id = %s 
-        GROUP BY month, type
-    """, (user_id, ))
-    monthly_data = cur.fetchall()
-    
-    expense_labels = [row["category"] for row in expense_by_category]
-    expense_amounts = [row["amount"] for row in expense_by_category]
-    
-    income_monthly = {}
-    expense_monthly = {}
-    for row in monthly_data:
-        if row["type"] == "income":
-            income_monthly[row["month"]] = row["total"]
-        else:
-            expense_monthly[row["month"]] = row["total"]
-            
-    months = []
-    for i in range(5, -1, -1):
-        d = datetime.now().replace(day=1) - timedelta(days=i * 30)
-        months.append(d.strftime("%Y-%m"))
-        
-    current_month = datetime.now().strftime("%Y-%m")
-    this_month_income = income_monthly.get(current_month, 0)
-    this_month_expense = expense_monthly.get(current_month, 0)
-    
-    last_month = (datetime.now().replace(day=1) - timedelta(days=1 * 30)).strftime("%Y-%m")
-    last_month_expense = expense_monthly.get(last_month, 0)
-    
-    saved = this_month_income - this_month_expense
-    overspending = this_month_expense - last_month_expense
-    
-    if not expense_by_category:
-        biggest_category = "None"
-        biggest_amount = 0
-    else:
-        biggest = max(expense_by_category, key=lambda row: row["amount"])
-        biggest_category = biggest["category"]
-        biggest_amount = biggest["amount"]
-        
-    percentage = round((biggest_amount / this_month_expense) * 100) if this_month_expense else 0
-    
-    cur.close() # Always close the cursor when done[cite: 1]
-    
-    return render_template("dashboard.html", 
-                           percentage=percentage, 
-                           saved=saved, 
-                           overspending=overspending, 
-                           this_month_expense=this_month_expense,
-                           biggest_category=biggest_category, 
-                           biggest_amount=biggest_amount, 
-                           total_income=total_income, 
-                           total_expense=total_expenses, 
-                           balance=balance, 
-                           expense_by_category=expense_by_category, 
-                           recent_transactions=recent_transactions, 
-                           monthly_data=monthly_data, 
-                           expense_labels=expense_labels, 
-                           expense_amounts=expense_amounts, 
-                           income_monthly=income_monthly, 
-                           expense_monthly=expense_monthly, 
-                           months=months)
+    if request.method == "POST":
+        t_type = request.form.get("type", "").strip().lower()
+        category = request.form.get("category", "").strip().lower()
+        amount_raw = request.form.get("amount", "").strip()
+        t_date = request.form.get("date", "").strip()
+        note = request.form.get("note", "").strip()
 
-@app.route("/history", methods=["POST", "GET"])
-@login_required
-def history():
-    user_id = session["user_id"]
-    db = get_db()
-    cur = db.cursor() # Use cursor for PostgreSQL
-    
-    filter_type = request.args.get("type", "")
-    filter_category = request.args.get("category", "")
-    date_from = request.args.get("date_from", "")
-    date_to = request.args.get("date_to", "")
-    
-    # Base query
-    query = "SELECT * FROM transactions WHERE user_id = %s"
-    params = [user_id]
-    
-    # Conditional filtering
-    if filter_type:
-        query += " AND type = %s"
-        params.append(filter_type)
+        if t_type not in ["income", "expense"]:
+            flash("Please choose a valid transaction type.", "danger")
+            return render_template("edit.html", transaction=transaction)
 
-    if filter_category:
-        query += " AND category = %s"
-        params.append(filter_category)
-    
-    if date_from and date_to:
-        query += " AND date >= %s AND date <= %s"
-        params.append(date_from)
-        params.append(date_to)
-    elif date_from:
-        query += " AND date >= %s"
-        params.append(date_from)
-    elif date_to:
-        query += " AND date <= %s"
-        params.append(date_to)
-    
-    # Execute through cursor
-    cur.execute(query, params)
-    results = cur.fetchall()
-    
-    # Summary calculations (using DictCursor keys)
-    summary_income = sum(row["amount"] for row in results if row["type"] == "income")
-    summary_expense = sum(row["amount"] for row in results if row["type"] == "expense")
-    total_count = len(results)
-    net = summary_income - summary_expense
-    
-    cur.close()
-    return render_template("history.html", results=results, summary_income=summary_income, 
-                           summary_expense=summary_expense, total_count=total_count, net=net)
+        if not category:
+            flash("Please select a category.", "danger")
+            return render_template("edit.html", transaction=transaction)
+
+        try:
+            amount = float(amount_raw)
+            if amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            flash("Please enter a valid amount greater than zero.", "danger")
+            return render_template("edit.html", transaction=transaction)
+
+        if not t_date:
+            t_date = date.today().strftime("%Y-%m-%d")
+
+        query_db(
+            """
+            UPDATE transactions 
+            SET type = %s, category = %s, amount = %s, note = %s, date = %s 
+            WHERE id = %s AND user_id = %s
+            """,
+            (t_type, category, amount, note, t_date, id, user_id),
+            commit=True
+        )
+
+        flash("Transaction updated successfully!", "success")
+        return redirect(url_for("history"))
+
+    # Convert date to YYYY-MM-DD string if needed
+    t_data = dict(transaction)
+    if isinstance(t_data.get("date"), (date, datetime)):
+        t_data["date"] = t_data["date"].strftime("%Y-%m-%d")
+
+    return render_template("edit.html", transaction=t_data)
 
 @app.route("/delete/<int:id>", methods=["POST"])
 @login_required
 def delete(id):
+    """Delete a transaction."""
     user_id = session["user_id"]
-    db = get_db()
-    cur = db.cursor()
-    
-    # Placeholders must be %s
-    cur.execute("DELETE FROM transactions WHERE id = %s AND user_id = %s", (id, user_id))
-    db.commit() # Changes must be committed
-    
-    cur.close()
-    return redirect("/history")
+    query_db("DELETE FROM transactions WHERE id = %s AND user_id = %s", (id, user_id), commit=True)
+    flash("Transaction deleted successfully.", "info")
+    return redirect(request.referrer or url_for("history"))
+
+@app.route("/history", methods=["GET"])
+@login_required
+def history():
+    """Search, filter, sort, and view complete transaction history."""
+    user_id = session["user_id"]
+
+    filter_type = request.args.get("type", "").strip().lower()
+    filter_category = request.args.get("category", "").strip().lower()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    search = request.args.get("search", "").strip()
+    sort_by = request.args.get("sort", "date_desc").strip()
+
+    # Base query
+    query = "SELECT * FROM transactions WHERE user_id = %s"
+    params = [user_id]
+
+    if filter_type in ["income", "expense"]:
+        query += " AND type = %s"
+        params.append(filter_type)
+
+    if filter_category:
+        query += " AND LOWER(category) = %s"
+        params.append(filter_category)
+
+    if date_from:
+        query += " AND date >= %s"
+        params.append(date_from)
+
+    if date_to:
+        query += " AND date <= %s"
+        params.append(date_to)
+
+    if search:
+        query += " AND (LOWER(note) LIKE %s OR LOWER(category) LIKE %s)"
+        params.append(f"%{search.lower()}%")
+        params.append(f"%{search.lower()}%")
+
+    # Sorting
+    if sort_by == "date_asc":
+        query += " ORDER BY date ASC, id ASC"
+    elif sort_by == "amount_desc":
+        query += " ORDER BY amount DESC"
+    elif sort_by == "amount_asc":
+        query += " ORDER BY amount ASC"
+    else: # date_desc
+        query += " ORDER BY date DESC, id DESC"
+
+    results = query_db(query, tuple(params))
+
+    # Live summary calculations
+    summary_income = sum(float(row["amount"] or 0) for row in results if row["type"] == "income")
+    summary_expense = sum(float(row["amount"] or 0) for row in results if row["type"] == "expense")
+    total_count = len(results)
+    net = summary_income - summary_expense
+
+    # Categories list for filter dropdown
+    cat_rows = query_db("SELECT DISTINCT category FROM transactions WHERE user_id = %s ORDER BY category ASC", (user_id,))
+    available_categories = [r["category"] for r in cat_rows]
+
+    return render_template(
+        "history.html",
+        results=results,
+        summary_income=summary_income,
+        summary_expense=summary_expense,
+        total_count=total_count,
+        net=net,
+        available_categories=available_categories,
+        filter_type=filter_type,
+        filter_category=filter_category,
+        date_from=date_from,
+        date_to=date_to,
+        search=search,
+        sort_by=sort_by
+    )
 
 @app.route("/export")
 @login_required
 def export():
+    """Export transactions to CSV with currently applied filters."""
     user_id = session["user_id"]
-    db = get_db()
-    cur = db.cursor()
-    
-    cur.execute("SELECT * FROM transactions WHERE user_id = %s", (user_id,))
-    transactions = cur.fetchall()
-    
+
+    filter_type = request.args.get("type", "").strip().lower()
+    filter_category = request.args.get("category", "").strip().lower()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    search = request.args.get("search", "").strip()
+
+    query = "SELECT * FROM transactions WHERE user_id = %s"
+    params = [user_id]
+
+    if filter_type in ["income", "expense"]:
+        query += " AND type = %s"
+        params.append(filter_type)
+    if filter_category:
+        query += " AND LOWER(category) = %s"
+        params.append(filter_category)
+    if date_from:
+        query += " AND date >= %s"
+        params.append(date_from)
+    if date_to:
+        query += " AND date <= %s"
+        params.append(date_to)
+    if search:
+        query += " AND (LOWER(note) LIKE %s OR LOWER(category) LIKE %s)"
+        params.append(f"%{search.lower()}%")
+        params.append(f"%{search.lower()}%")
+
+    query += " ORDER BY date DESC, id DESC"
+    transactions = query_db(query, tuple(params))
+
     output = io.StringIO()
     writer = csv.writer(output)
-    
-    writer.writerow(["Date", "Type", "Category", "Note", "Amount"])
-    
-    for row in transactions:
-        # Accessing by column names works because of DictCursor[cite: 1]
-        writer.writerow([row["date"], row["type"], row["category"], row["note"], row["amount"]])
-    
-    cur.close()
-    output.seek(0)
-    return Response(output, mimetype="text/csv", 
-                    headers={"Content-Disposition": "attachment;filename=transactions.csv"})
+    writer.writerow(["ID", "Date", "Type", "Category", "Amount (INR)", "Note"])
 
-@app.route("/logout") # No trailing slash if your links don't use one
-@login_required
-def logout():
-    session.clear()
-    return redirect("/")
+    for row in transactions:
+        writer.writerow([
+            row["id"],
+            str(row["date"]),
+            row["type"].capitalize(),
+            row["category"].capitalize(),
+            f"{float(row['amount']):.2f}",
+            row["note"] or ""
+        ])
+
+    output.seek(0)
+    filename = f"paisa_pulse_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 if __name__ == "__main__":
-    init_db()
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
