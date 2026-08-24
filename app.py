@@ -97,9 +97,18 @@ def format_date_filter(value):
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "user_id" not in session:
+        user_id = session.get("user_id")
+        if not user_id:
             flash("Please sign in to access this page.", "warning")
             return redirect(url_for("login", next=request.path))
+        
+        # Verify the user exists in the active database (prevents foreign key / stale session issues)
+        user = query_db("SELECT id, username FROM users WHERE id = %s", (user_id,), one=True)
+        if not user:
+            session.clear()
+            flash("Your session has expired or the database was refreshed. Please log in again.", "warning")
+            return redirect(url_for("login"))
+            
         return f(*args, **kwargs)
     return decorated
 
@@ -374,15 +383,18 @@ def add():
         if not t_date:
             t_date = date.today().strftime("%Y-%m-%d")
 
-        user_id = session["user_id"]
-        query_db(
-            "INSERT INTO transactions(user_id, type, category, amount, note, date) VALUES(%s, %s, %s, %s, %s, %s)",
-            (user_id, t_type, category, amount, note, t_date),
-            commit=True
-        )
-
-        flash(f"{t_type.capitalize()} of ₹{amount:,.2f} added successfully!", "success")
-        return redirect(url_for("dashboard"))
+        user_id = session.get("user_id")
+        try:
+            query_db(
+                "INSERT INTO transactions(user_id, type, category, amount, note, date) VALUES(%s, %s, %s, %s, %s, %s)",
+                (user_id, t_type, category, amount, note, t_date),
+                commit=True
+            )
+            flash(f"{t_type.capitalize()} of ₹{amount:,.2f} added successfully!", "success")
+            return redirect(url_for("dashboard"))
+        except Exception as e:
+            flash("Could not save transaction. Please verify your account and try again.", "danger")
+            return render_template("add.html", today=t_date)
 
     return render_template("add.html", today=date.today().strftime("%Y-%m-%d"))
 

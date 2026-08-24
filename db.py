@@ -82,32 +82,39 @@ def query_db(query, args=(), one=False, commit=False):
     db = get_db()
     db_type = getattr(g, "db_type", detect_db_type())
 
-    if db_type == "sqlite":
-        # SQLite uses '?' placeholders instead of '%s'
-        adapted_query = query.replace("%s", "?")
-        cur = db.cursor()
-        cur.execute(adapted_query, args)
-        if commit:
-            db.commit()
-            last_id = cur.lastrowid
+    try:
+        if db_type == "sqlite":
+            # SQLite uses '?' placeholders instead of '%s'
+            adapted_query = query.replace("%s", "?")
+            cur = db.cursor()
+            cur.execute(adapted_query, args)
+            if commit:
+                db.commit()
+                last_id = cur.lastrowid
+                cur.close()
+                return last_id
+            rv = cur.fetchall()
             cur.close()
-            return last_id
-        rv = cur.fetchall()
-        cur.close()
-        # Convert sqlite3.Row to regular dicts with lowercase keys
-        results = [{k.lower(): row[k] for k in row.keys()} for row in rv]
-        return (results[0] if results else None) if one else results
-    else:
-        cur = db.cursor()
-        cur.execute(query, args)
-        if commit:
-            db.commit()
+            # Convert sqlite3.Row to regular dicts with lowercase keys
+            results = [{k.lower(): row[k] for k in row.keys()} for row in rv]
+            return (results[0] if results else None) if one else results
+        else:
+            cur = db.cursor()
+            cur.execute(query, args)
+            if commit:
+                db.commit()
+                cur.close()
+                return True
+            rv = cur.fetchall()
             cur.close()
-            return True
-        rv = cur.fetchall()
-        cur.close()
-        results = [{k.lower(): row[k] for k in row.keys()} for row in rv]
-        return (results[0] if results else None) if one else results
+            results = [{k.lower(): row[k] for k in row.keys()} for row in rv]
+            return (results[0] if results else None) if one else results
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise e
 
 def init_db():
     """Create necessary database tables and indexes."""
