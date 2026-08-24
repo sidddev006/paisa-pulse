@@ -1,11 +1,16 @@
 # 💸 Paisa Pulse — Smart Personal Finance Tracker
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-paisa--pulse.onrender.com-success?style=for-the-badge&logo=render&logoColor=white)](https://paisa-pulse.onrender.com/)
+<br>
+
 [![Flask](https://img.shields.io/badge/Framework-Flask%203.x-emerald)](https://flask.palletsprojects.com/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%20%7C%20Supabase-336791)](https://supabase.com/)
 [![TailwindCSS](https://img.shields.io/badge/Design-Tailwind%20CSS-38bdf8)](https://tailwindcss.com/)
 [![Render](https://img.shields.io/badge/Deploy-Render-46e3b7)](https://render.com/)
 
 > **Paisa Pulse** is a modern, responsive personal finance and wealth management web application built with Python (Flask), PostgreSQL (Supabase / Render), and Tailwind CSS. It empowers users to easily log income & expenses, analyze monthly cash flow with interactive visual charts, filter financial history, and download instant CSV reports.
+
+🔗 **Live Demo:** [https://paisa-pulse.onrender.com/](https://paisa-pulse.onrender.com/)
 
 *Built by **Siddharth Mishra** ([@sidddev006](https://github.com/sidddev006))*
 
