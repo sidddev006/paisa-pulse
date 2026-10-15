@@ -106,14 +106,6 @@
             -moz-appearance: textfield;
         }
 
-        /* Disable copy, selection, and drag */
-        body, html {
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-            -webkit-touch-callout: none;
-        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 flex flex-col min-h-full selection:bg-brand-500 selection:text-white">
@@ -307,21 +299,6 @@
             }
         }, { passive: false });
 
-        // Disable copy, cut, paste, context menu (right-click), and drag events globally
-        ['copy', 'cut', 'paste', 'contextmenu', 'dragstart'].forEach(function(evt) {
-            document.addEventListener(evt, function(e) {
-                e.preventDefault();
-                return false;
-            });
-        });
-
-        // Block copy/cut/paste keyboard shortcuts (Ctrl/Cmd + C, Ctrl/Cmd + V, Ctrl/Cmd + X, Ctrl/Cmd + U, Ctrl/Cmd + S)
-        document.addEventListener('keydown', function(e) {
-            if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'u', 's', 'C', 'V', 'X', 'U', 'S'].includes(e.key)) {
-                e.preventDefault();
-                return false;
-            }
-        });
     </script>
 
     {% block scripts %}{% endblock %}
